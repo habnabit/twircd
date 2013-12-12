@@ -76,13 +76,15 @@ class Channel(MultiService):
         return d
 
     def command_update(self, message):
-        d = self.twitter.request('statuses/update.json', 'POST', status=message)
-        d.addCallback(self._gotTweet)
-        return d
+        return self.twitter.request('statuses/update.json', 'POST', status=message)
 
     def command_destroy(self, tag):
         tweet = self.tweets[int(tag, 16)]
         return self.twitter.request('statuses/destroy/%(id)s.json' % tweet, 'POST')
+
+    def command_retweet(self, tag):
+        tweet = self.tweets[int(tag, 16)]
+        return self.twitter.request('statuses/retweet/%(id)s.json' % tweet, 'POST')
 
     def command_set(self, arg):
         if not arg:
