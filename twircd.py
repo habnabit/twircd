@@ -39,7 +39,6 @@ class Channel(MultiService):
 
     def joined(self):
         self.twirc.join(self.twirc.host, self.name)
-        self.twirc.send('MODE', self.name, '+t', nocolon=True)
         self.twirc.topic(self.twirc.nickname, self.name, None)
         self.twirc.names(self.twirc.nickname, self.name, [self.twirc.nickname])
         self.startService()
