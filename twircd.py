@@ -141,7 +141,7 @@ class Channel(MultiService):
         elif 'friends' in data:
             self.systemMessage('stream connected')
         else:
-            self.systemMessage(repr(data))
+            log.msg('from %s: %r' % (self.name, data))
 
 
 class Twirc(irc.IRC):
