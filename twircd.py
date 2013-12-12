@@ -1,4 +1,5 @@
 import cgi
+import json
 
 import oauth2
 from twisted.application.service import MultiService
@@ -292,6 +293,26 @@ class Twirc(irc.IRC):
             self.systemMessage('account %r already added' % (account,))
         d = self.getToken()
         d.addCallback(self._addedAccount)
+
+    def command_save(self, ign):
+        data = {account: {'key': t.key, 'secret': t.secret}
+                for account, t in self.tokens.iteritems()}
+        with open('tokens', 'wb') as outfile:
+            json.dump(data, outfile)
+        self.systemMessage('saved')
+
+    def command_load(self, ign):
+        with open('tokens') as infile:
+            data = json.load(infile)
+        self.tokens = {account.encode(): oauth2.Token(**t) for account, t in data.iteritems()}
+        self.systemMessage('loaded')
+
+    def command_accounts(self, ign):
+        if not self.tokens:
+            self.systemMessage('no accounts')
+        else:
+            for account in self.tokens:
+                self.systemMessage('- %s' % (account,))
 
     def _addedAccount(self, result):
         token, account = result
