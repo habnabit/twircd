@@ -80,6 +80,8 @@ class Channel(MultiService):
     def command_update(self, message):
         return self.twitter.request('statuses/update.json', 'POST', status=message)
 
+    command_post = command_update
+
     def command_destroy(self, tag):
         tweet = self.tweets[int(tag, 16)]
         return self.twitter.request('statuses/destroy/%(id)s.json' % tweet, 'POST')
@@ -87,6 +89,19 @@ class Channel(MultiService):
     def command_retweet(self, tag):
         tweet = self.tweets[int(tag, 16)]
         return self.twitter.request('statuses/retweet/%(id)s.json' % tweet, 'POST')
+
+    command_rt = command_retweet
+
+    def command_url(self, tag):
+        tweet = self.tweets[int(tag, 16)]
+        message = 'https://twitter.com/user/status/%(id)s' % tweet
+        self.systemMessage(message.encode('utf-8'))
+
+    def command_unurl(self, url):
+        _, _, status = url.rpartition('/')
+        d = self.twitter.request('statuses/show/%s.json' % (status,))
+        d.addCallback(self._gotTweet)
+        return d
 
     def command_set(self, arg):
         if not arg:
@@ -143,6 +158,9 @@ class Channel(MultiService):
     def command_unfollow(self, user):
         return self.twitter.request('friendships/destroy.json', method='POST',
                                     screen_name=user)
+
+    def command_rem(self, ign):
+        pass
 
     def _gotTweet(self, data):
         if 'text' in data:
