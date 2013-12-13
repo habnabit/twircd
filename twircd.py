@@ -1,5 +1,7 @@
 import cgi
 import json
+import operator
+import os
 
 import oauth2
 from twisted.application.service import MultiService
@@ -94,6 +96,8 @@ class Channel(MultiService):
         setting, _, value = arg.partition(' ')
         if not value:
             self.systemMessage('%s: %s' % (setting, self.settings[setting]))
+        elif value == '%':
+            self.settings.pop(setting, None)
         else:
             self.settings[setting] = value
 
@@ -116,10 +120,29 @@ class Channel(MultiService):
         d.addCallback(self._gotTweets)
         return d
 
+    def command_search(self, query):
+        d = self.twitter.request('search/tweets.json', q=query, count='10', result_type='recent')
+        d.addCallback(operator.itemgetter('statuses'))
+        d.addCallback(self._gotTweets)
+        return d
+
     def _gotTweets(self, tweets):
         for data in reversed(tweets):
             self._gotTweet(data)
         self.systemMessage('end of list')
+
+    def command_msg(self, arg):
+        recipient, _, message = arg.partition(' ')
+        return self.twitter.request('direct_messages/new.json', method='POST',
+                                    screen_name=recipient, text=message)
+
+    def command_follow(self, user):
+        return self.twitter.request('friendships/create.json', method='POST',
+                                    screen_name=user, follow='true')
+
+    def command_unfollow(self, user):
+        return self.twitter.request('friendships/destroy.json', method='POST',
+                                    screen_name=user)
 
     def _gotTweet(self, data):
         if 'text' in data:
@@ -139,10 +162,26 @@ class Channel(MultiService):
                 self.systemMessage('unknown tweet deleted')
             else:
                 self.systemMessage('tweet [%x] deleted' % (tag,))
+        elif 'direct_message' in data:
+            user = data['direct_message']['sender_screen_name'].encode('utf-8')
+            recipient = data['direct_message']['recipient_screen_name'].encode('utf-8')
+            host = '%s!%s@twitter' % (user, user)
+            text = escapeControls(data['direct_message']['text'])
+            self.twirc.privmsg(host, self.name, '%s: %s' % (recipient, text))
         elif 'started_connecting' in data:
             self.systemMessage('started connecting stream')
         elif 'friends' in data:
             self.systemMessage('stream connected')
+        elif 'event' in data:
+            event = data['event']
+            if event == 'follow':
+                message = '%s has started following %s' % (
+                    data['source']['screen_name'], data['target']['screen_name'])
+                self.systemMessage(message.encode('utf-8'))
+            elif event == 'unfollow':
+                message = '%s is no longer following %s' % (
+                    data['source']['screen_name'], data['target']['screen_name'])
+                self.systemMessage(message.encode('utf-8'))
         else:
             log.msg('from %s: %r' % (self.name, data))
 
@@ -187,6 +226,8 @@ class Twirc(irc.IRC):
         self.send(
             irc.RPL_MYINFO, 'twircd', 'HEAD', '', 't', 'ov', nocolon=True)
         self.addChannel('&twircd')
+        if os.path.exists('tokens'):
+            self.command_load(None)
 
     def irc_PING(self, prefix, params):
         self.send('PONG', *params)
