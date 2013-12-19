@@ -407,6 +407,9 @@ class Twirc(irc.IRC):
             for account in self.tokens:
                 self.systemMessage('- %s' % (account,))
 
+    def command_rem(self, ign):
+        pass
+
     def _addedAccount(self, result):
         token, account = result
         self.systemMessage('got token for %r' % (account,))
