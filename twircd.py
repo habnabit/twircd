@@ -30,6 +30,7 @@ class Channel(MultiService):
         self.token = token
         self.tagCounter = 0
         self.tweets = {}
+        self.tweetsByID = {}
         self.stream = None
         self.settings = {}
 
@@ -90,6 +91,10 @@ class Channel(MultiService):
         tweet = self.tweets[int(tag, 16)]
         return self.twitter.request('statuses/retweet/%(id)s.json' % tweet, 'POST')
 
+    def command_show(self, tag):
+        tweet = self.tweets[int(tag, 16)]
+        return self._showTweetTree(tweet)
+
     command_rt = command_retweet
 
     def command_url(self, tag):
@@ -99,9 +104,7 @@ class Channel(MultiService):
 
     def command_unurl(self, url):
         _, _, status = url.rpartition('/')
-        d = self.twitter.request('statuses/show/%s.json' % (status,))
-        d.addCallback(self._gotTweet)
-        return d
+        return self._fetchStatus(status)
 
     def command_set(self, arg):
         if not arg:
@@ -142,9 +145,9 @@ class Channel(MultiService):
         return d
 
     def _gotTweets(self, tweets):
-        for data in reversed(tweets):
-            self._gotTweet(data)
-        self.systemMessage('end of list')
+        dl = defer.gatherResults(
+            [self._gotTweet(data) for data in reversed(tweets)])
+        dl.addBoth(lambda ign: self.systemMessage('end of list'))
 
     def command_msg(self, arg):
         recipient, _, message = arg.partition(' ')
@@ -162,24 +165,52 @@ class Channel(MultiService):
     def command_rem(self, ign):
         pass
 
-    def _gotTweet(self, data):
+    def _fetchStatus(self, status, depth=0):
+        d = self.twitter.request('statuses/show/%s.json' % (status,))
+        d.addCallback(self._gotTweet, depth)
+        return d
+
+    def _showTweetTree(self, data, depth=0):
+        if depth < 5 and data.get('in_reply_to_status_id'):
+            d = self._fetchStatus(data['in_reply_to_status_id'], depth + 1)
+            d.addErrback(log.err, 'error fetching reply to %r' % (data,))
+            d.addCallback(lambda ign: self._showTweet(data))
+            return d
+        else:
+            self._showTweet(data)
+            if depth >= 5:
+                self.systemMessage(
+                    'not fetching replyee of [%(tag)x]' % data)
+        return defer.succeed(None)
+
+    def _showTweet(self, data):
+        user = data['user']['screen_name'].encode('utf-8')
+        host = '%s!%s@twitter' % (user, user)
+        text = escapeControls(twits.extractRealTwitText(data))
+        tag = '%(tag)x' % data
+        replyee = self.tweetsByID.get(data.get('in_reply_to_status_id'))
+        if replyee is not None:
+            tag = '%s->%x' % (tag, replyee['tag'])
+        self.twirc.privmsg(host, self.name, '[%s] %s' % (tag, text))
+
+    def _gotTweet(self, data, depth=0):
         if 'text' in data:
-            user = data['user']['screen_name'].encode('utf-8')
-            host = '%s!%s@twitter' % (user, user)
-            tag = self.tagCounter
+            if data['id'] in self.tweetsByID:
+                return defer.succeed(None)
+            tag = data['tag'] = self.tagCounter
+            oldTweet = self.tweets.pop(tag, None)
+            if oldTweet is not None:
+                del self.tweetsByID[oldTweet['id']]
             self.tweets[tag] = data
+            self.tweetsByID[data['id']] = data
             self.tagCounter = (self.tagCounter + 1) % 0xfff
-            text = escapeControls(twits.extractRealTwitText(data))
-            self.twirc.privmsg(host, self.name, '[%x] %s' % (tag, text))
+            return self._showTweetTree(data, depth)
         elif 'delete' in data:
-            id_str = data['delete']['status']['id_str']
-            tag = next((tag for tag, tweet in self.tweets.iteritems()
-                        if tweet['id_str'] == id_str),
-                       None)
-            if tag is None:
+            tweet = self.tweetsByID.get(data['delete']['status']['id'])
+            if tweet is None:
                 self.systemMessage('unknown tweet deleted')
             else:
-                self.systemMessage('tweet [%x] deleted' % (tag,))
+                self.systemMessage('tweet [%(tag)x] deleted' % tweet)
         elif 'direct_message' in data:
             user = data['direct_message']['sender_screen_name'].encode('utf-8')
             recipient = data['direct_message']['recipient_screen_name'].encode('utf-8')
@@ -202,6 +233,7 @@ class Channel(MultiService):
                 self.systemMessage(message.encode('utf-8'))
         else:
             log.msg('from %s: %r' % (self.name, data))
+        return defer.succeed(None)
 
 
 class Twirc(irc.IRC):
