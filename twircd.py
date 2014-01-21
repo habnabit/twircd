@@ -69,9 +69,10 @@ class Channel(MultiService):
     def command_reply(self, arg):
         tag, _, reply = arg.partition(' ')
         tweet = self.tweets[int(tag, 16)]
-        at = '@' + tweet['user']['screen_name']
+        reply = reply.decode('utf-8', 'replace')
+        at = u'@' + tweet['user']['screen_name']
         if at.lower() not in reply.lower():
-            reply = at + ' '  + reply
+            reply = at + u' '  + reply
         d = self.twitter.request(
             'statuses/update.json', 'POST',
             status=reply, in_reply_to_status_id=tweet['id'])
@@ -79,7 +80,8 @@ class Channel(MultiService):
         return d
 
     def command_update(self, message):
-        return self.twitter.request('statuses/update.json', 'POST', status=message)
+        return self.twitter.request(
+            'statuses/update.json', 'POST', status=message.decode('utf-8', 'replace'))
 
     command_post = command_update
 
