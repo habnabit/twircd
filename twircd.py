@@ -205,7 +205,7 @@ class Channel(MultiService):
                 del self.tweetsByID[oldTweet['id']]
             self.tweets[tag] = data
             self.tweetsByID[data['id']] = data
-            self.tagCounter = (self.tagCounter + 1) % 0xfff
+            self.tagCounter = (self.tagCounter + 1) % 0x1000
             return self._showTweetTree(data, depth)
         elif 'delete' in data:
             tweet = self.tweetsByID.get(data['delete']['status']['id'])
