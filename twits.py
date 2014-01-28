@@ -250,10 +250,11 @@ class StreamPreserver(Service):
     def stopService(self):
         "Stop reading from the stream."
         ret = None
-        if self.running and self._streamDone is not None:
+        if self._streamDone is not None:
             self._streamDone.cancel()
             ret = self._streamDone
-        Service.startService(self)
+            self._streamDone = None
+        Service.stopService(self)
         return ret
 
 
