@@ -35,7 +35,7 @@ class Channel(MultiService):
         self.settings = {}
 
     def systemMessage(self, message):
-        self.twirc.privmsg('*', self.name, message)
+        self.twirc.notice('*', self.name, message)
 
     def _errback(self, failure, context):
         log.err(failure, context)
@@ -346,7 +346,7 @@ class Twirc(irc.IRC):
         channelObj.joined()
 
     def systemMessage(self, message):
-        self.privmsg('*', '&twircd', message)
+        self.notice('*', '&twircd', message)
 
     def getToken(self, account=None):
         if account is not None and account in self.tokens:
