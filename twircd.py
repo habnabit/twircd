@@ -124,7 +124,8 @@ class Channel(MultiService):
     def command_refresh(self, ign):
         if self.stream:
             self.stream.disownServiceParent()
-        preserver = twits.StreamPreserver(self.userStreamTwitter, 'user.json', **self.settings)
+        preserver = twits.StreamPreserver(
+            self.twirc.factory.reactor, self.userStreamTwitter, 'user.json', **self.settings)
         preserver.setServiceParent(self)
         preserver.addDelegate(self._gotTweet)
         self.stream = preserver
@@ -421,5 +422,6 @@ class Twirc(irc.IRC):
 class TwircFactory(protocol.Factory):
     protocol = Twirc
 
-    def __init__(self, agent):
+    def __init__(self, reactor, agent):
+        self.reactor = reactor
         self.agent = agent

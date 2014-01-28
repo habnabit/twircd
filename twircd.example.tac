@@ -7,7 +7,7 @@ from twircd import TwircFactory
 
 pool = HTTPConnectionPool(reactor)
 agent = Agent(reactor, pool=pool)
-fac = TwircFactory(agent)
+fac = TwircFactory(reactor, agent)
 
 application = Application('twircd')
 TCPServer(6667, fac, interface='::').setServiceParent(application)

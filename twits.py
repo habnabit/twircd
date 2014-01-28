@@ -9,7 +9,7 @@ import urllib
 import urlparse
 
 from twisted.application.service import Service
-from twisted.internet import defer, protocol
+from twisted.internet import defer, protocol, task
 from twisted.internet.error import ConnectionDone, ConnectionLost, TimeoutError
 from twisted.protocols.basic import LineOnlyReceiver
 from twisted.protocols.policies import TimeoutMixin
@@ -202,7 +202,8 @@ class Twitter(object):
 
 class StreamPreserver(Service):
     "Keep a stream connected as a service."
-    def __init__(self, twitter, resource, **parameters):
+    def __init__(self, reactor, twitter, resource, **parameters):
+        self.reactor = reactor
         self.twitter = twitter
         self.resource = resource
         self.parameters = parameters
@@ -221,7 +222,7 @@ class StreamPreserver(Service):
         self._streamDelegate({'started_connecting': True})
         d = self._streamDone = self.twitter.stream(
             self.resource, self._streamDelegate, **self.parameters)
-        d.addBoth(self._connectStream)
+        d.addBoth(lambda r: task.deferLater(self.reactor, 2, self._connectStream, r))
         d.addErrback(log.err, 'error reading from twitter stream %r' % self)
         return r
 
