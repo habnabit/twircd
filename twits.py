@@ -98,7 +98,10 @@ class OAuthAgent(object):
             # oauth2, for some bozotic reason, gives unicode header values
             headers.addRawHeader(header, value.encode())
         parsed = urlparse.urlparse(uri)
-        uri = urlparse.urlunparse(parsed._replace(query=urllib.urlencode(req.get_nonoauth_parameters())))
+        parameters = {k.encode('utf-8'): v.encode('utf-8')
+                      for k, v in req.get_nonoauth_parameters().iteritems()}
+        uri = urlparse.urlunparse(
+            parsed._replace(query=urllib.urlencode(parameters)))
         return self.agent.request(method, uri, headers, bodyProducer)
 
 
