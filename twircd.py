@@ -163,13 +163,19 @@ class Channel(MultiService):
         return self.twitter.request('direct_messages/new.json', method='POST',
                                     screen_name=recipient, text=message)
 
-    def command_follow(self, user):
-        return self.twitter.request('friendships/create.json', method='POST',
-                                    screen_name=user, follow='true')
+    def command_follow(self, users):
+        deferreds = []
+        for user in users.split():
+            deferreds.append(self.twitter.request(
+                'friendships/create.json', method='POST', screen_name=user, follow='true'))
+        return defer.gatherResults(deferreds, consumeErrors=True)
 
-    def command_unfollow(self, user):
-        return self.twitter.request('friendships/destroy.json', method='POST',
-                                    screen_name=user)
+    def command_unfollow(self, users):
+        deferreds = []
+        for user in users.split():
+            deferreds.append(self.twitter.request(
+                'friendships/destroy.json', method='POST', screen_name=user))
+        return defer.gatherResults(deferreds, consumeErrors=True)
 
     def command_rem(self, ign):
         pass
