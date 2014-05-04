@@ -99,14 +99,20 @@ class Channel(MultiService):
 
     command_rt = command_retweet
 
-    def command_url(self, tag):
-        tweet = self.tweets[int(tag, 16)]
-        message = 'https://twitter.com/user/status/%(id)s' % tweet
-        self.systemMessage(message.encode('utf-8'))
+    def command_url(self, tags):
+        messages = []
+        for tag in tags.split():
+            tweet = self.tweets[int(tag, 16)]
+            message = 'https://twitter.com/user/status/%(id)s' % tweet
+            messages.append(message.encode('utf-8'))
+        self.systemMessage(' '.join(messages))
 
-    def command_unurl(self, url):
-        _, _, status = url.rpartition('/')
-        return self._fetchStatus(status)
+    def command_unurl(self, urls):
+        deferreds = []
+        for url in urls.split():
+            _, _, status = url.rpartition('/')
+            deferreds.append(self._fetchStatus(status))
+        return defer.gatherResults(deferreds, consumeErrors=True)
 
     def command_set(self, arg):
         if not arg:
