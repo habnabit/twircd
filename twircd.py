@@ -32,7 +32,7 @@ class Channel(MultiService):
         self.tweets = {}
         self.tweetsByID = {}
         self.stream = None
-        self.settings = {}
+        self.settings = twirc.channelSettings.setdefault(name, {})
 
     def systemMessage(self, message):
         self.twirc.notice('*', self.name, message)
@@ -259,6 +259,7 @@ class Twirc(irc.IRC):
     def connectionMade(self):
         irc.IRC.connectionMade(self)
         self.channels = {}
+        self.channelSettings = {}
         self.tokens = {}
         self._nextMessageDeferred = None
 
@@ -403,8 +404,10 @@ class Twirc(irc.IRC):
         d.addCallback(self._addedAccount)
 
     def command_save(self, ign):
-        data = {account: {'key': t.key, 'secret': t.secret}
-                for account, t in self.tokens.iteritems()}
+        data = {}
+        for account, t in self.tokens.iteritems():
+            data[account] = accountData = {'key': t.key, 'secret': t.secret}
+            accountData['settings'] = self.channelSettings.setdefault('#' + account, {})
         with open('tokens', 'wb') as outfile:
             json.dump(data, outfile)
         self.systemMessage('saved')
@@ -412,7 +415,13 @@ class Twirc(irc.IRC):
     def command_load(self, ign):
         with open('tokens') as infile:
             data = json.load(infile)
-        self.tokens = {account.encode(): oauth2.Token(**t) for account, t in data.iteritems()}
+        for account, t in data.iteritems():
+            settings = t.pop('settings', {})
+            settings = {k.encode(): v.encode() for k, v in settings.iteritems()}
+            channelSettings = self.channelSettings.setdefault('#' + account, {})
+            channelSettings.clear()
+            channelSettings.update(settings)
+            self.tokens[account.encode()] = oauth2.Token(**t)
         self.systemMessage('loaded')
 
     def command_accounts(self, ign):
